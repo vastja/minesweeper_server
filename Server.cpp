@@ -7,6 +7,7 @@
 #include <netinet/in.h>
 #include <stdlib.h>
 #include <sys/ioctl.h>
+#include <queue> 
 
 #include "Server.hpp"
 #include "Utils.hpp"
@@ -23,8 +24,9 @@ Server::Server(int bufferSize, int serverQueueSize, int maxClients) {
 
     this->maxClients = maxClients;
     cbuf = new char[bufferSize];
-    id = new int[maxClients];
-    arrayInitialize(id, maxClients);
+    clientsIds = new int[maxClients];
+    games = new Game[maxClients];
+    arrayInitialize(clientsIds, maxClients);
 
     start();
     startToListen(serverQueueSize);
@@ -32,10 +34,12 @@ Server::Server(int bufferSize, int serverQueueSize, int maxClients) {
 
 Server::~Server() {
     stop();
-    delete cbuf;
-    delete id;
+    delete[] cbuf;
+    delete[] clientsIds;
+    delete[] games;
     cbuf = NULL;
-    id = NULL;
+    clientsIds = NULL;
+    games = NULL;
 }
 
 int Server::start() {
@@ -115,22 +119,25 @@ void Server::read(int fd) {
     
     int readyToRead;
 
-    ioctl( fd, FIONREAD, &readyToRead );
+    ioctl(fd, FIONREAD, &readyToRead );
                
     if (readyToRead > 0){
-        recv(fd, cbuf, sizeof(char) * 256, 0);
-        std::cout << "Prijato: " << cbuf << std::endl;
+        recv(fd, cbuf, sizeof(char) * bufferSize, 0);
+        //TODO
+        int id;
+        char reqId;
+        getIds(cbuf, &id, &reqId);
+        executeReq(id, reqId, cbuf);
               
     }
     else {
         close(fd);
         FD_CLR( fd, &client_socks );
         std::cout << "Klient se odpojil a byl odebran ze sady socketu\n";
-        freeId(id, fd, maxClients);
+        freeId(clientsIds, fd, maxClients);
     }
 }
 
-// Paralelne??
 void Server::acceptNewClient(int fd) {
 
     if (FD_SETSIZE < maxClients) { 
@@ -142,26 +149,80 @@ void Server::acceptNewClient(int fd) {
         FD_SET( client_socket, &client_socks);
         std::cout << "Pripojen novy klient a pridan do sady socketu\n";
 
-        int clientId = findFreeId(id, maxClients);
+        int clientId = findFreeId(clientsIds, maxClients);
         std::cout << "Novy klient dostal id: "<< clientId << std::endl;
 
-        char message[4];
-
-        convertIdToByteArray(clientId, message);
-
-        message[2] = 0;
-        message[3] = 3;
-        std::cout << "Here 1\n";
+        clientsIds[clientId] = client_socket;
+        sendMessage(clientId, SEND_ID);
         
-        int i = send(client_socket, message, 4, 0);
-        std::cout << "Here " << i << std::endl;
-        // TODO overit, ze dostal id
-        id[clientId] = client_socket;
 
     }
     else {
         // Send we are sorry but all seats are taken
     }
+}
 
+void Server::sendMessage(int id, char req) { 
+    
+    switch (req) {
+        case  SEND_ID : 
+           sendId(id);
+           break;
+        case START_GAME :
+            sendStartGame(id);
+            break; 
+        default :
+            std::cout << "This reqId code does not have set action\n";
+    }
+}
 
+void Server::executeReq(int id, char req, char message[]) {
+
+    switch (req) {
+        case START_GAME :
+            std::cout << "Executing START GAME request\n";
+            startGame(id);
+            break;
+        default:
+            std::cout << "Request with such ID does not exist\n";
+    }
+}
+
+void Server::sendId(int id) {
+
+    char message[4];
+    convert16bIdToByteArray(id, message);
+
+    message[2] = SEND_ID;
+    message[3] = ETX;
+    
+    int i = send(clientsIds[id], message, 4, 0);
+
+}
+
+void Server::sendStartGame(int id) {
+    char message[4];
+    convert16bIdToByteArray(id, message);
+
+    message[2] = START_GAME;
+    message[3] = ETX;
+    
+    int i = send(clientsIds[id], message, 4, 0);
+}
+
+void Server::startGame(int id0) {
+
+    if (!waitingForGame.empty()) {
+        // TODO remember who is already waiting or enable start button ...
+        int id1 = waitingForGame.front();
+        waitingForGame.pop();
+        Game game = Game(id0, id1); //Default width X height
+        games[id0] = game;
+        games[id1] = game;
+        sendMessage(id0, START_GAME);
+        sendMessage(id1, START_GAME);
+    }
+    else {
+        waitingForGame.push(id0);
+    }
 }
