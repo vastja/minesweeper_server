@@ -8,9 +8,12 @@
 #include <stdlib.h>
 #include <sys/ioctl.h>
 #include <queue> 
+#include <string>
+#include <sstream>
 
 #include "Server.hpp"
 #include "Utils.hpp"
+#include "Game.hpp"
 
 int main() {
 
@@ -22,10 +25,11 @@ int main() {
 //I has to be sure there is no more clients than 16bit number
 Server::Server(int bufferSize, int serverQueueSize, int maxClients) {
 
+    this->bufferSize = bufferSize;
     this->maxClients = maxClients;
     cbuf = new char[bufferSize];
     clientsIds = new int[maxClients];
-    games = new Game[maxClients];
+    *games = new Game[maxClients];
     arrayInitialize(clientsIds, maxClients);
 
     start();
@@ -153,7 +157,7 @@ void Server::acceptNewClient(int fd) {
         std::cout << "Novy klient dostal id: "<< clientId << std::endl;
 
         clientsIds[clientId] = client_socket;
-        sendMessage(clientId, SEND_ID);
+        sendMessage(clientId, SEND_ID, NULL);
         
 
     }
@@ -162,16 +166,19 @@ void Server::acceptNewClient(int fd) {
     }
 }
 
-void Server::sendMessage(int id, char req) { 
+void Server::sendMessage(int id, char req, char message[]) { 
     
     switch (req) {
-        case  SEND_ID : 
+        case  SEND_ID: 
            sendId(id);
            break;
-        case START_GAME :
+        case START_GAME:
             sendStartGame(id);
-            break; 
-        default :
+            break;
+        case REVEAL:
+            sendRevealed(id, message);
+            break;
+        default:
             std::cout << "This reqId code does not have set action\n";
     }
 }
@@ -179,9 +186,13 @@ void Server::sendMessage(int id, char req) {
 void Server::executeReq(int id, char req, char message[]) {
 
     switch (req) {
-        case START_GAME :
+        case START_GAME:
             std::cout << "Executing START GAME request\n";
             startGame(id);
+            break;
+        case REVEAL:
+            std::cout << "Executing REVEAL request\n";
+            revealCell(id, message);
             break;
         default:
             std::cout << "Request with such ID does not exist\n";
@@ -189,25 +200,42 @@ void Server::executeReq(int id, char req, char message[]) {
 }
 
 void Server::sendId(int id) {
+    char message[5];
 
-    char message[4];
-    convert16bIdToByteArray(id, message);
-
-    message[2] = SEND_ID;
-    message[3] = ETX;
+    message[0] = STX;
+    convert16bIdToByteArray(id, message + 1);
+    message[3] = SEND_ID;
+    message[4] = ETX;
     
-    int i = send(clientsIds[id], message, 4, 0);
-
+    int i = send(clientsIds[id], message, 5, 0);
 }
 
 void Server::sendStartGame(int id) {
-    char message[4];
-    convert16bIdToByteArray(id, message);
+    char message[5];
 
-    message[2] = START_GAME;
-    message[3] = ETX;
+    message[0] = STX;
+    convert16bIdToByteArray(id, message + 1);
+    message[3] = START_GAME;
+    message[4] = ETX;
     
-    int i = send(clientsIds[id], message, 4, 0);
+    int i = send(clientsIds[id], message, 5, 0);
+}
+
+void Server::sendRevealed(int id, char response[]) {
+
+    int length = strlen(response) + 4;
+
+    char message[length];
+    message[0] = STX;
+    convert16bIdToByteArray(id, message + 1);
+
+    message[3] = REVEAL;
+
+    strcpy(message + 4, response);
+    printf ("response: %s\n", response);
+
+    //char mes[10] = {'\000', '\000', '\002', '1', ';', '1', ';', '-', '1', ETX};
+    int i = send(clientsIds[id], message, length, 0);
 }
 
 void Server::startGame(int id0) {
@@ -216,13 +244,80 @@ void Server::startGame(int id0) {
         // TODO remember who is already waiting or enable start button ...
         int id1 = waitingForGame.front();
         waitingForGame.pop();
-        Game game = Game(id0, id1); //Default width X height
+        Game *game = new Game(id0, id1); //Default width X height
+        game->printBoard();
         games[id0] = game;
         games[id1] = game;
-        sendMessage(id0, START_GAME);
-        sendMessage(id1, START_GAME);
+        sendMessage(id0, START_GAME, NULL);
+        sendMessage(id1, START_GAME, NULL);
     }
     else {
         waitingForGame.push(id0);
+    }
+}
+
+void Server::revealCell(int id, char message[]) {
+
+    char *parsedMessage = parseMessage(message + 3, bufferSize);
+    const char *delim = ";";
+    char *token;
+
+    token = strtok(parsedMessage, delim);
+    int i = atoi(token);
+    token = strtok(NULL, delim);
+    int j = atoi(token);
+
+
+    doReveal(id, i,j);
+
+    delete parsedMessage;
+    parsedMessage = NULL;
+}
+
+void Server::doReveal(int id, int i, int j) {
+
+    if (games[id]->isRevealed(i, j)) {
+        return;
+    }
+
+    int mines = games[id]->reveal(i, j);
+
+    std::ostringstream oss;
+    oss << i << ';' << j << ';';
+    if (mines == MINE) {
+
+        oss << MINE;
+        std::string str = oss.str() + ETX;
+        std::cout << "1: " << str << std::endl;
+        char message[str.length()];
+        strcpy(message, str.c_str());
+
+        sendMessage(id, REVEAL, message);
+    }
+    else if (mines == 0) {
+
+        oss << mines;
+        std::string str = oss.str() + ETX;
+        char message[str.length()];
+        strcpy(message, str.c_str());
+        sendMessage(id, REVEAL, message);
+
+        for (int w = i - 1; w <= i + 1; w++) {
+            for (int h = j - 1; h <= j + 1; h++) {
+                if (checkRange(w, h, games[id]->width, games[id]->height)) {
+                    doReveal(id, w, h);
+                }
+            }
+        }
+
+    }
+    else {
+
+        oss << mines;
+        std::string str = oss.str() + ETX;
+        char message[str.length()];
+        strcpy(message, str.c_str());
+
+        sendMessage(id, REVEAL, message);
     }
 }
