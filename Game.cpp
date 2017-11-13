@@ -13,11 +13,13 @@ Game::Game(int player1Id, int player2Id, int i , int j, int minesCount) {
     this->player2Id = player2Id;
     this->width = i;
     this->height = j;
+    this->fieldsToPlay = i * j;
+    this->minesCount = minesCount;
 
     board = new int[i * j];
     revealed = new bool[i * j];
 
-    initBoard(minesCount);
+    initBoard();
 }
 
 Game::~Game() {
@@ -26,9 +28,9 @@ Game::~Game() {
     board = NULL;
 }
 
-void Game::initBoard(int minesCount) {
+void Game::initBoard() {
 
-    placeMines(minesCount);
+    placeMines();
 
     for (int i = 0; i < height; i++) {
         for (int j = 0; j < width; j++) {
@@ -42,18 +44,19 @@ void Game::initBoard(int minesCount) {
 
 
 // TODO - divide board into areas and then place mines randomly
-void Game::placeMines(int minesCount) {
+void Game::placeMines() {
 
     srand(time(NULL));
     int iPos, jPos;
 
-    while (minesCount > 0) {
+    int count = minesCount; 
+    while (count > 0) {
         iPos = ((double) rand() / (RAND_MAX)) * width;
         jPos = ((double) rand() / (RAND_MAX)) * height;
 
         if (checkRange(iPos, jPos, width, height) && board[iPos * width  + jPos] != MINE) {
             board[iPos * width + jPos] = MINE;
-            minesCount--;
+            count--;
         }
     }
 }
@@ -75,14 +78,26 @@ int Game::findCountOfSurroundingMines(int iPos, int jPos) {
 
 int Game::reveal(int i, int j) {
 
+    if (!revealed[i * width + j]) {
+        fieldsToPlay--;
+    }
+
     revealed[i * width + j] = true;
     return board[i * width + j];
+}
+
+bool Game::areFieldsToPlay() {
+    return fieldsToPlay > this->minesCount;
 }
 
 bool Game::isRevealed(int i, int j) {
 
     return revealed[i * width + j];
 
+}
+
+int Game::getOponent(int playerId) {
+    return playerId == player1Id ? player2Id : player1Id;
 }
 
 void Game::printBoard() {

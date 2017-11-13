@@ -3,9 +3,13 @@
 
 #include "Game.hpp"
 
-const char SEND_ID = 0;
-const char START_GAME = 1;
-const char REVEAL = 2; 
+const char SEND_ID = 4;
+const char START_GAME = 5;
+const char REVEAL = 6;
+const char WIN = 7;
+const char LOSE = 8;
+const char DRAW = 9;
+const char START_TURN = 10;
 
 class Server {
     
@@ -36,9 +40,8 @@ class Server {
         void sendMessage(int id, char req, char message[]);
         void executeReq(int id, char req, char message[]);
         
-        void sendId(int id);
-        void sendStartGame(int id);
         void sendRevealed(int id, char response[]);
+        void sendSimpleResponse(int id, char reqId);
         void startGame(int id0);
         void revealCell(int id, char message[]);
         void doReveal(int id, int i, int j);

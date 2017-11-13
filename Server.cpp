@@ -40,6 +40,7 @@ Server::~Server() {
     stop();
     delete[] cbuf;
     delete[] clientsIds;
+    // TODO free all games
     delete[] games;
     cbuf = NULL;
     clientsIds = NULL;
@@ -169,11 +170,13 @@ void Server::acceptNewClient(int fd) {
 void Server::sendMessage(int id, char req, char message[]) { 
     
     switch (req) {
-        case  SEND_ID: 
-           sendId(id);
-           break;
+        case SEND_ID: 
         case START_GAME:
-            sendStartGame(id);
+        case WIN:
+        case LOSE:
+        case DRAW:
+        case START_TURN:
+            sendSimpleResponse(id, req);
             break;
         case REVEAL:
             sendRevealed(id, message);
@@ -199,23 +202,12 @@ void Server::executeReq(int id, char req, char message[]) {
     }
 }
 
-void Server::sendId(int id) {
+void Server::sendSimpleResponse(int id, char reqId) {
     char message[5];
 
     message[0] = STX;
     convert16bIdToByteArray(id, message + 1);
-    message[3] = SEND_ID;
-    message[4] = ETX;
-    
-    int i = send(clientsIds[id], message, 5, 0);
-}
-
-void Server::sendStartGame(int id) {
-    char message[5];
-
-    message[0] = STX;
-    convert16bIdToByteArray(id, message + 1);
-    message[3] = START_GAME;
+    message[3] = reqId;
     message[4] = ETX;
     
     int i = send(clientsIds[id], message, 5, 0);
@@ -250,6 +242,7 @@ void Server::startGame(int id0) {
         games[id1] = game;
         sendMessage(id0, START_GAME, NULL);
         sendMessage(id1, START_GAME, NULL);
+        sendMessage(id0, START_TURN, NULL);
     }
     else {
         waitingForGame.push(id0);
@@ -270,6 +263,9 @@ void Server::revealCell(int id, char message[]) {
 
     doReveal(id, i,j);
 
+    int oponentId = games[id]->getOponent(id);
+    sendMessage(oponentId, START_TURN, NULL);
+
     delete parsedMessage;
     parsedMessage = NULL;
 }
@@ -280,6 +276,7 @@ void Server::doReveal(int id, int i, int j) {
         return;
     }
 
+    int oponentId = games[id]->getOponent(id);
     int mines = games[id]->reveal(i, j);
 
     std::ostringstream oss;
@@ -292,7 +289,8 @@ void Server::doReveal(int id, int i, int j) {
         char message[str.length()];
         strcpy(message, str.c_str());
 
-        sendMessage(id, REVEAL, message);
+        sendMessage(id, LOSE, message);
+        sendMessage(oponentId, WIN, message);
     }
     else if (mines == 0) {
 
@@ -301,6 +299,7 @@ void Server::doReveal(int id, int i, int j) {
         char message[str.length()];
         strcpy(message, str.c_str());
         sendMessage(id, REVEAL, message);
+        sendMessage(oponentId, REVEAL, message);
 
         for (int w = i - 1; w <= i + 1; w++) {
             for (int h = j - 1; h <= j + 1; h++) {
@@ -319,5 +318,11 @@ void Server::doReveal(int id, int i, int j) {
         strcpy(message, str.c_str());
 
         sendMessage(id, REVEAL, message);
+        sendMessage(oponentId, REVEAL, message);
+    }
+
+    if (!games[id]->areFieldsToPlay()) {
+        sendMessage(id, DRAW, NULL);
+        sendMessage(oponentId, DRAW, NULL);
     }
 }

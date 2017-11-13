@@ -11,10 +11,12 @@ class Game {
         bool *revealed;
         int player1Id;
         int player2Id;
-        
+
+        int fieldsToPlay;
+        int minesCount;
     
-        void initBoard(int minesCount);
-        void placeMines(int minesCount);
+        void initBoard();
+        void placeMines();
         int findCountOfSurroundingMines(int iPos, int jPos);
     
     public:
@@ -26,6 +28,9 @@ class Game {
 
         int reveal(int i, int j);   
         bool isRevealed(int i, int j);
+        bool areFieldsToPlay();
+        int getOponent(int playerId);
+        
         Game();
         Game(int player1Id, int player2Id, int i = 10, int j = 10, int minesCount = 10);
         ~Game();
