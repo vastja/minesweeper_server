@@ -8,7 +8,7 @@
             "type": "shell",
             "command": "g++",
             "args": [
-                "-o", "Server.out", "Game.cpp", "Server.cpp", "Utils.cpp"
+                "-pthread", "-std=c++11", "-o", "Server.out", "Game.cpp", "Server.cpp", "Utils.cpp", "Timer.cpp", "Client.cpp"
             ],
             "group": {
                 "kind": "build",
@@ -21,8 +21,8 @@
             "type": "shell",
             "command": "g++",
             "args": [
-                "-g", "-o", "Server.out", "Game.cpp", "Server.cpp", "Utils.cpp"
-            ]
+                "-g", "-pthread", "-std=c++11", "-o", "Server.out", "Game.cpp", "Server.cpp", "Utils.cpp", "Timer.cpp", "Client.cpp"
+            ] 
         }
     ]
 }

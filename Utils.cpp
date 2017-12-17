@@ -1,18 +1,14 @@
 #include "Utils.hpp"
 #include "Game.hpp"
+#include "Server.hpp"
+#include "Client.hpp"
 
 const char ESCAPE_CHAR = '/';
 
-void arrayInitialize(int array[], int size) {
-    for (int i = 0; i < size; i++) {
-        array[i] = -1;
-    }
-}
-
-int findFreeId(int id[], int size) {
+int findFreeId(Client ** clients, int size) {
 
     for (int i = 0; i < size; i++) {
-        if (id[i] == -1) {
+        if (clients[i] == NULL) {
             return i;
         }
     }
@@ -20,18 +16,19 @@ int findFreeId(int id[], int size) {
     return -1;
 }
 
-void freeId(int id[], int clientSocket, int size) {
+void freeClient(Client ** clients, int clientSocket, int size) {
     for (int i = 0; i < size; i++) {
-        if (id[i] == clientSocket) {
-            id[i] = -1;
+        if (clients[i]->getClientsSocket() == clientSocket) {
+            delete clients[i];
+            clients[i] = NULL;
         }
     }
 }
 
-int findId(int id[], int clientSocket, int size) {
+int findClientId(Client ** clients, int clientSocket, int size) {
 
     for (int i = 0; i < size; i++) {
-        if (id[i] == clientSocket) {
+        if (clients[i] != NULL && clients[i]->getClientsSocket() == clientSocket) {
             return i;
         }
     }
@@ -61,16 +58,17 @@ bool checkRange(int i, int j, int width, int height) {
 }
 
 void getIds(char recieved[], int *id, char *reqId) {
-
-    *id = convertByteArrayTo16bId(recieved[0], recieved[1]);
-    *reqId = recieved[2];
+    //TODO is valid format?
+    *id = convertByteArrayTo16bId(recieved[1], recieved[2]);
+    *reqId = recieved[3];
 
 }
 
-char *parseMessage(char message[], int bufferSize) {
+void parseMessage(char message[], int bufferSize, char result[]) {
 
+    // TODO add buffer as parameter 
     int pos = 0;
-    char *buffer = new char[bufferSize];
+
     bool escape = false;
     for (int i = 0; i < bufferSize; i++) {
 
@@ -78,16 +76,36 @@ char *parseMessage(char message[], int bufferSize) {
             escape = true;
         }
         else if (message[i] == ETX && escape == false) {
-            buffer[pos] = '\0';
+            result[pos] = '\0';
             break;
         }
         else {
-            buffer[pos++] = message[i];
+            result[pos++] = message[i];
             escape = false;
         }
 
     }
+}
 
-    return buffer;
+bool isInGame(Game ** games, int size, int id) {
 
+    if (id >= 0 && id < size) {
+        return games[id] != NULL; 
+    }
+    else {
+        return false;
+    }
+}
+
+void generateGameCode(char *s, const int len) {
+
+    srand(time(NULL));
+
+    static const char alphanum[] = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+
+    for (int i = 0; i < len; ++i) {
+        s[i] = alphanum[rand() % (sizeof(alphanum) - 1)];
+    }
+
+    s[len] = '\0';
 }

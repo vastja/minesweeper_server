@@ -22,6 +22,18 @@
         "stdexcept": "cpp",
         "streambuf": "cpp",
         "type_traits": "cpp",
-        "typeinfo": "cpp"
+        "typeinfo": "cpp",
+        "thread": "cpp",
+        "condition_variable": "cpp",
+        "mutex": "cpp",
+        "array": "cpp",
+        "atomic": "cpp",
+        "chrono": "cpp",
+        "ctime": "cpp",
+        "functional": "cpp",
+        "memory": "cpp",
+        "ratio": "cpp",
+        "tuple": "cpp",
+        "utility": "cpp"
     }
 }
