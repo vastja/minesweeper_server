@@ -14,6 +14,9 @@ Game::Game(Server * server, int player1Id, int player2Id, int i , int j, int min
     this->fieldsToPlay = i * j;
     this->minesCount = minesCount;
     
+    player1Away = false;
+    player2Away = false;
+    
     roundTimer = new Timer();
 
     board = new int[i * j];
@@ -22,27 +25,29 @@ Game::Game(Server * server, int player1Id, int player2Id, int i , int j, int min
     initBoard();
 
     inProgress = true;
+    onTurn = -1;
 
     int len = 10 + (rand() % 10);
     gameCode = new char[len];
     generateGameCode(gameCode, len); 
 
-    this->server->executeStartGameResponse(player1Id, gameCode);
-    this->server->executeStartGameResponse(player2Id, gameCode);
-
-    setTurn(player1Id);
-
-
+    this->server->sendMessage(player1Id, START_GAME, gameCode);
+    this->server->sendMessage(player2Id, START_GAME, gameCode);
 }
 
 Game::~Game() {
-    delete[] board;
-    delete[] revealed;
-    delete gameCode;
+
+    roundTimer->cancel();
+
+    delete [] board;
+    delete [] revealed;
+    delete [] gameCode;
+    delete roundTimer;
 
     board = NULL;
     revealed = NULL;
     gameCode = NULL;
+    roundTimer = NULL;
 }
 
 void Game::initBoard() {
@@ -168,12 +173,13 @@ void Game::setTurn(int id) {
     endTurn(onTurn);
     onTurn = id;
     
-    std::thread timer (&Timer::start, roundTimer, 10, this);
+    //TODO
+    std::thread timer (&Timer::start, roundTimer, 30, this);
     timer.detach();
 
     inProgress = true;
 
-    this->server->executeStartTurnResponse(id);
+    this->server->sendMessage(id, START_TURN, NULL);
 }
 
 int Game::getTurn() {
@@ -183,10 +189,11 @@ int Game::getTurn() {
 void Game::onAction() {
     this->inProgress = false;
     int oponentId = getOponent(onTurn);
+
     this->server->executeEndGameResponse(onTurn, oponentId, Game::TIMEOUT);
 };
 
-void Game::endGameReveal() {
+void Game::endGameReveal(int id) {
 
     int mines;
 
@@ -196,7 +203,7 @@ void Game::endGameReveal() {
             mines = this->reveal(i, j);
 
             if (mines == MINE) {
-                this->server->executeRevealResponse(onTurn, i, j, MINE, true);
+                this->server->executeRevealResponse(id, i, j, MINE, true);
             }
         }
     }
@@ -211,8 +218,10 @@ int Game::doRevealCell(int i, int j) {
     int mines = reveal(i, j);
 
     int oponentId = getOponent(onTurn);
+
     this->server->executeRevealResponse(onTurn, i, j, mines, false);
     this->server->executeRevealResponse(oponentId, i, j, mines, false);
+   
 
     if (mines == MINE) {
         return MINE;
@@ -233,6 +242,12 @@ int Game::doRevealCell(int i, int j) {
 }
 
 void Game::doReveal(int i, int j) {
+
+    if (!checkRange(i, j, width, height)) {
+        this->server->sendMessage(onTurn, REVEAL_REFUSED, REVEAL_E4);
+        return;
+    }
+
     int result = doRevealCell(i, j);
 
     int oponentId = getOponent(onTurn);
@@ -245,7 +260,7 @@ void Game::doReveal(int i, int j) {
         inProgress = false;
     }
     else if (result == Game::REVEALED) {
-        // REVEALED CELL CANT BE REVEALED AGAIN - DO NOTHING
+        this->server->sendMessage(onTurn, REVEAL_REFUSED, REVEAL_E3);
     }
     else {
         setTurn(oponentId);
@@ -257,13 +272,30 @@ void Game::endGame(int id) {
     this->server->executeEndGameResponse(oponentId, id, Game::SURRENDER);
 }
 
-bool Game::reconnect(int id, char code[]) {
+bool Game::reconnect(int id, int oldId, const char * code) {
 
-    if ((id == player1Id || player2Id) && strcmp(code, gameCode)) {
-        id == player1Id ? player1Id = id : player2Id = id;
+    if ((oldId == player1Id || oldId == player2Id) && strcmp(code, gameCode) == 0) {
+
+        this->server->sendMessage(id, RECONNECT, NULL);
+        if (onTurn == oldId) {
+                this->server->sendMessage(id, START_TURN, NULL);
+                onTurn = id;
+        }
+
+        if (id == player1Id) {
+            player1Id = id; 
+            player1Away = false;
+        }
+        else {
+            player2Id = id; 
+            player2Away = false;
+        }
+
+
         return true;
     }
     else {
+        this->server->sendMessage(id, RECONNECT_REFUSED, RECONNECT_E1);
         return false;
     }
 

@@ -11,14 +11,14 @@ void Timer::start(const int time, BaseTimer * bt) {
 
     std::unique_lock<std::mutex> lk(m);
     if (cv.wait_for(lk, std::chrono::seconds(time)) == std::cv_status::timeout) {
-        std::cerr << "TIME OUT\n";
+        //std::cerr << "TIME OUT\n";
         if (bt != NULL) {
             bt->onAction();
         }
         
     } 
     else {
-        std::cerr << "INTERRUPTED\n";
+        //std::cerr << "INTERRUPTED\n";
     }
 
 }

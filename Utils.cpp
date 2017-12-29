@@ -57,43 +57,73 @@ bool checkRange(int i, int j, int width, int height) {
     return i >= 0 && i < width && j >= 0 && j < height;
 }
 
-void getIds(char recieved[], int *id, char *reqId) {
+void getIds(std::string * recieved, int *id, char *reqId) {
     //TODO is valid format?
-    *id = convertByteArrayTo16bId(recieved[1], recieved[2]);
-    *reqId = recieved[3];
+    *id = convertByteArrayTo16bId((*recieved)[0], (*recieved)[1]);
+    *reqId = (*recieved)[2];
 
 }
 
-void parseMessage(char message[], int bufferSize, char result[]) {
+void parseMessage(int startPos, std::string * str, std::vector<std::string> * vec) {
 
-    // TODO add buffer as parameter 
-    int pos = 0;
+    std::ostringstream os;
 
     bool escape = false;
-    for (int i = 0; i < bufferSize; i++) {
+    os.str("");
+    for (int i = startPos; i < str->length(); i++) {
 
-        if (message[i] == ESCAPE_CHAR) {
+        if (escape) {
+            escape = false;
+            os << (*str)[i];
+        }
+        if ((*str)[i] == ESCAPE_CHAR) {
             escape = true;
         }
-        else if (message[i] == ETX && escape == false) {
-            result[pos] = '\0';
-            break;
+        else if ((*str)[i] == ';') {
+            vec->push_back(os.str());
+            os.str("");
         }
         else {
-            result[pos++] = message[i];
-            escape = false;
+            os << (*str)[i];
         }
-
     }
 }
 
-bool isInGame(Game ** games, int size, int id) {
+void parseBuffer(char buffer[], int readyToRead, std::list<std::string> * reqList) {
 
-    if (id >= 0 && id < size) {
-        return games[id] != NULL; 
-    }
-    else {
-        return false;
+    std::ostringstream os;
+
+    int id;
+    int reqId;
+
+    bool escape = false;
+    bool start = false;
+    for (int i = 0; i < readyToRead; i++) {
+        if (escape) {
+            escape = false;
+            if (start) {
+                os << buffer[i];
+            }     
+        }
+        else if (buffer[i] == '\\') {
+            escape = true;
+            if (start) {
+                os << buffer[i];
+            }
+        }
+        else if (buffer[i] == STX) {
+            start = true;
+            os.str("");
+        }
+        else if (buffer[i] == ETX) {
+            start = false;
+            reqList->push_back(os.str());
+        } 
+        else {
+            if (start) {
+                os << buffer[i];
+            }
+        }
     }
 }
 
@@ -103,9 +133,9 @@ void generateGameCode(char *s, const int len) {
 
     static const char alphanum[] = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
 
-    for (int i = 0; i < len; ++i) {
+    for (int i = 0; i < len - 1; ++i) {
         s[i] = alphanum[rand() % (sizeof(alphanum) - 1)];
     }
 
-    s[len] = '\0';
+    s[len - 1] = '\0';
 }

@@ -26,6 +26,9 @@ class Game : public BaseTimer {
         int player1Id;
         int player2Id;
 
+        bool player1Away;
+        bool player2Away;
+
         // TODO
         char *player1Name;
         char *player2Name;
@@ -49,6 +52,8 @@ class Game : public BaseTimer {
     
     public:
 
+        static const int ROUND_TIME = 30;
+
         static const char REVEALED = -2;
         static const char MINE = -1;
         static const char DEATH = 0;
@@ -57,7 +62,7 @@ class Game : public BaseTimer {
         static const char SURRENDER = 3;
 
         void printBoard();
-        void endGameReveal();
+        void endGameReveal(int id);
         void doReveal(int i, int j);
         void revealStateOfGame(int id);
         bool isRevealed(int i, int j);
@@ -71,8 +76,18 @@ class Game : public BaseTimer {
         virtual void onAction();
 
         void getPlayers(int * player1Id, int * player2Id) { *player1Id = this->player1Id; *player2Id = this->player2Id;};
-        bool reconnect(int id, char code[]);
-        
+        bool reconnect(int id, int oldId, const char * code);
+
+        void setAway(int id) {id == player1Id ? player1Away = true : player2Away = true;};
+        bool isAway(int id) {
+            if (id == player1Id) {
+                return player1Away;
+            }
+            else {
+                return player2Away;
+            }
+        };
+
         Game(){};
         Game(Server * server, int player1Id, int player2Id, int i = 10, int j = 10, int minesCount = 10);
         ~Game();

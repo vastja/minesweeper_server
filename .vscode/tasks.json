@@ -8,21 +8,37 @@
             "type": "shell",
             "command": "g++",
             "args": [
-                "-pthread", "-std=c++11", "-o", "Server.out", "Game.cpp", "Server.cpp", "Utils.cpp", "Timer.cpp", "Client.cpp"
+                "-pthread",
+                "-std=c++11",
+                "-o",
+                "Server.out",
+                "Game.cpp",
+                "Server.cpp",
+                "Utils.cpp",
+                "Timer.cpp",
+                "IdleChecker.cpp"
             ],
             "group": {
                 "kind": "build",
                 "isDefault": true
             }
         },
-
         {
             "taskName": "debug build minsweeper server",
             "type": "shell",
             "command": "g++",
             "args": [
-                "-g", "-pthread", "-std=c++11", "-o", "Server.out", "Game.cpp", "Server.cpp", "Utils.cpp", "Timer.cpp", "Client.cpp"
-            ] 
+                "-g",
+                "-pthread",
+                "-std=c++11",
+                "-o",
+                "Server.out",
+                "Game.cpp",
+                "Server.cpp",
+                "Utils.cpp",
+                "Timer.cpp",
+                "IdleChecker.cpp"
+            ]
         }
     ]
 }
