@@ -10,6 +10,8 @@
 
     const char STX = '\x02';
     const char ETX = '\x03';
+    const char ESCAPE_CHAR = '/';
+    const char SEPARATOR_CHAR = ';';
 
     void arrayInitialize(Client clients[], int size);
 
@@ -21,7 +23,7 @@
 
     int findClientId(Client * clients[], int clientsSocket, int size);
 
-    void convert16bIdToByteArray(int i, char bytes[]);
+    void convert16bIdToByteArray(int i, char  * sByte, char * fByte);
 
     int convertByteArrayTo16bId(char byte0, char byte1);
 

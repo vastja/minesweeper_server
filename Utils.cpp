@@ -3,8 +3,6 @@
 #include "Server.hpp"
 #include "Client.hpp"
 
-const char ESCAPE_CHAR = '/';
-
 int findFreeId(Client ** clients, int size) {
 
     for (int i = 0; i < size; i++) {
@@ -37,10 +35,10 @@ int findClientId(Client ** clients, int clientSocket, int size) {
 }
 
 // 16 bits - 
-void convert16bIdToByteArray(int i, char bytes[]) {
+void convert16bIdToByteArray(int i, char * fByte, char * sByte) {
 
-    bytes[0] = i >> 8 & 0xFF;
-    bytes[1] = i & 0xFF;
+    *fByte = i >> 8 & 0xFF;
+    *sByte = i & 0xFF;
 
 }
 
@@ -79,7 +77,7 @@ void parseMessage(int startPos, std::string * str, std::vector<std::string> * ve
         if ((*str)[i] == ESCAPE_CHAR) {
             escape = true;
         }
-        else if ((*str)[i] == ';') {
+        else if ((*str)[i] == SEPARATOR_CHAR) {
             vec->push_back(os.str());
             os.str("");
         }
@@ -105,11 +103,8 @@ void parseBuffer(char buffer[], int readyToRead, std::list<std::string> * reqLis
                 os << buffer[i];
             }     
         }
-        else if (buffer[i] == '\\') {
+        else if (buffer[i] == ESCAPE_CHAR) {
             escape = true;
-            if (start) {
-                os << buffer[i];
-            }
         }
         else if (buffer[i] == STX) {
             start = true;

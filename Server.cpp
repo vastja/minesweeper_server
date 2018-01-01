@@ -345,11 +345,15 @@ void Server::sendMessage(const int id, const char req, const char message[]) {
         case TIMEOUT_WIN:
         case SURRENDER_LOSE:
         case SURRENDER_WIN:
-            if (games[id] != NULL && !games[id]->isAway(id)) { 
+        case END_GAME:
+            if (games[id] != NULL && !games[id]->isAway(id) && clients[id]->isInGame()) { 
                 sendSimpleResponse(id, req);
             }
             break;
         case SEND_ID:
+            std::cout << "SEND_ID " << id << "to socket" << clients[id]->getClientsSocket() << std::endl;
+            sendSimpleResponse(id, req);
+            break;
         case ALIVE:
         case START_GAME_ACCEPTED:
         case RECONNECT:
@@ -357,7 +361,7 @@ void Server::sendMessage(const int id, const char req, const char message[]) {
             break;
         case END_GAME_REVEAL:
         case REVEAL:
-            if (games[id] != NULL && !games[id]->isAway(id)) { 
+            if (games[id] != NULL && !games[id]->isAway(id) && clients[id]->isInGame()) { 
                 sendResponseWithMessage(id, req, message);
             }
             break;
@@ -404,7 +408,7 @@ void Server::executeReq(int id, char req, std::string message) {
             endGame(id);
             break;
         case ALIVE:
-            std::cout << "Executing ALIVE request [" << id << "]\n";
+            //std::cout << "Executing ALIVE request [" << id << "]\n";
             clients[id]->resetBadFormatMessagesCount();
             sendMessage(id, ALIVE, NULL);
             break;
@@ -429,31 +433,63 @@ void Server::executeReq(int id, char req, std::string message) {
 }
 
 void Server::sendSimpleResponse(const int id, const char reqId) const {
-    char message[5];
-
-    message[0] = STX;
-    convert16bIdToByteArray(id, message + 1);
-    message[3] = reqId;
-    message[4] = ETX;
     
-    int i = send(clients[id]->getClientsSocket(), message, 5, 0);
+    char fByte;
+    char sByte;
+
+    convert16bIdToByteArray(id, &fByte, &sByte);
+
+    std::ostringstream oss;
+
+    oss << STX;
+
+    if (fByte == ETX || fByte == STX) {
+			oss << ESCAPE_CHAR;
+	}
+	oss << fByte;
+		
+	if (sByte == ETX || sByte == STX) {
+		oss << ESCAPE_CHAR;
+	}
+	oss << sByte;
+		
+	oss << reqId;	
+	oss << ETX;
+    
+    std::string message = oss.str();
+    
+    int i = send(clients[id]->getClientsSocket(), message.c_str(), message.length(), 0);
 }
 
 void Server::sendResponseWithMessage(const int id, const char reqId, const char response[]) const {
 
-    int length = strlen(response) + 6;
+    char fByte;
+    char sByte;
 
-    char message[length];
-    message[0] = STX;
-    convert16bIdToByteArray(id, message + 1);
+    convert16bIdToByteArray(id, &fByte, &sByte);
 
-    message[3] = reqId;
+    std::ostringstream oss;
 
-    strcpy(message + 4, response);
-    message[length - 2] = ';';
-    message[length - 1] = ETX;
+    oss << STX;
 
-    int i = send(clients[id]->getClientsSocket(), message, length, 0);
+    if (fByte == ETX || fByte == STX) {
+			oss << ESCAPE_CHAR;
+	}
+	oss << fByte;
+		
+	if (sByte == ETX || sByte == STX) {
+		oss << ESCAPE_CHAR;
+	}
+	oss << sByte;
+		
+	oss << reqId;
+    oss << std::string(response);	
+    oss << SEPARATOR_CHAR;
+	oss << ETX;
+    
+    std::string message = oss.str();
+
+    int i = send(clients[id]->getClientsSocket(), message.c_str(), message.length(), 0);
 }
 
 void Server::startGame(int id0) {
@@ -489,14 +525,13 @@ void Server::startGame(int id0) {
             games[id0] = game;
             games[id1] = game;
 
-            game->setTurn(id0);
-
             clients[id0]->setWaitingForGame(false);
             clients[id1]->setWaitingForGame(false);
 
             clients[id0]->setInGame(true);
             clients[id1]->setInGame(true);
 
+            game->setTurn(id0);
             //STAT-INFO
             info.gamesStarted++;
         }
@@ -517,6 +552,8 @@ void Server::endGame(int id) {
         sendMessage(id, SURRENDER_REFUSED, SURRENDER_E1);
         return;
     }
+
+    sendMessage(id, END_GAME, NULL);
 
     clients[id]->setLastCommunication();
     clients[id]->setInGame(false);
@@ -683,6 +720,7 @@ void Server::gameReconnect(int id, std::string message) {
             sendMessage(id, RECONNECT_REFUSED, RECONNECT_E2);
         }
         else if (games[oldId]->reconnect(id, oldId, vec[1].c_str())) {
+            clients[id]->setInGame(true);
             games[id]->revealStateOfGame(id);
         }
     }

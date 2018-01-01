@@ -276,12 +276,6 @@ bool Game::reconnect(int id, int oldId, const char * code) {
 
     if ((oldId == player1Id || oldId == player2Id) && strcmp(code, gameCode) == 0) {
 
-        this->server->sendMessage(id, RECONNECT, NULL);
-        if (onTurn == oldId) {
-                this->server->sendMessage(id, START_TURN, NULL);
-                onTurn = id;
-        }
-
         if (id == player1Id) {
             player1Id = id; 
             player1Away = false;
@@ -291,7 +285,7 @@ bool Game::reconnect(int id, int oldId, const char * code) {
             player2Away = false;
         }
 
-
+        this->server->sendMessage(id, RECONNECT, NULL);
         return true;
     }
     else {
@@ -302,6 +296,11 @@ bool Game::reconnect(int id, int oldId, const char * code) {
 }
 
 void Game::revealStateOfGame(int id) {
+
+    if (onTurn == id) {
+        this->server->sendMessage(id, START_TURN, NULL);
+        onTurn = id;
+    }
 
     for (int i = 0; i < this->height; i++) {
         for (int j = 0; j < this->width; j++) {
