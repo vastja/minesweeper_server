@@ -336,24 +336,26 @@ void Server::sendMessage(const int id, const char req, const char message[]) {
         return;
     }
 
+    if (message == NULL) {
+        std::cout << "SEND reqId: " << (int) req << " to client with ID: " << id << " with no message\n";
+    }
+    else {
+        std::cout << "SEND reqId: " << (int) req << " to client with ID: " << id << " with message: " << message << std::endl;
+    }
+    
+
     switch (req) { 
         case WIN:
         case LOSE:
         case DRAW:
+        case END_TURN:
         case START_TURN:
         case TIMEOUT_LOSE:
         case TIMEOUT_WIN:
         case SURRENDER_LOSE:
         case SURRENDER_WIN:
         case END_GAME:
-            if (games[id] != NULL && !games[id]->isAway(id) && clients[id]->isInGame()) { 
-                sendSimpleResponse(id, req);
-            }
-            break;
         case SEND_ID:
-            std::cout << "SEND_ID " << id << "to socket" << clients[id]->getClientsSocket() << std::endl;
-            sendSimpleResponse(id, req);
-            break;
         case ALIVE:
         case START_GAME_ACCEPTED:
         case RECONNECT:
@@ -361,10 +363,6 @@ void Server::sendMessage(const int id, const char req, const char message[]) {
             break;
         case END_GAME_REVEAL:
         case REVEAL:
-            if (games[id] != NULL && !games[id]->isAway(id) && clients[id]->isInGame()) { 
-                sendResponseWithMessage(id, req, message);
-            }
-            break;
         case START_GAME:
         case RECONNECT_REFUSED:
         case START_GAME_REFUSED:
@@ -408,7 +406,7 @@ void Server::executeReq(int id, char req, std::string message) {
             endGame(id);
             break;
         case ALIVE:
-            //std::cout << "Executing ALIVE request [" << id << "]\n";
+            std::cout << "Executing ALIVE request [" << id << "]\n";
             clients[id]->resetBadFormatMessagesCount();
             sendMessage(id, ALIVE, NULL);
             break;
@@ -500,21 +498,22 @@ void Server::startGame(int id0) {
     } 
     else if (clients[id0]->isInGame()) {
         sendMessage(id0, START_GAME_REFUSED, START_GAME_E1);
+        return;
     }
     else if (clients[id0]->isWaitingForGame()) {
         sendMessage(id0, START_GAME_REFUSED, START_GAME_E2);
+        return;
     }
-
 
     if (!waitingForGame.empty()) {
 
         int id1 = waitingForGame.front();
         waitingForGame.pop();
 
-        if (clients[id1] == NULL || id0 == id1) {
+        if (clients[id1] == NULL) {
             startGame(id0);
         }
-        else if(!clients[id1]->isWaitingForGame() || clients[id1]->isInGame()) {
+        else if (id0 == id1 || !clients[id1]->isWaitingForGame() || clients[id1]->isInGame()) {
             startGame(id0);
         }
         else {
@@ -549,7 +548,11 @@ void Server::endGame(int id) {
         return;
     }
     else if (!clients[id]->isInGame()) {
-        sendMessage(id, SURRENDER_REFUSED, SURRENDER_E1);
+        sendMessage(id, END_GAME_REFUSED, END_GAME_E2);
+        return;
+    }
+    else if (games[id] == NULL) {
+        sendMessage(id, END_GAME_REFUSED, END_GAME_E1);
         return;
     }
 
@@ -568,22 +571,28 @@ void Server::surrenderGame(int id) {
         return;
     }
     else if (!clients[id]->isInGame()) {
+        sendMessage(id, SURRENDER_REFUSED, SURRENDER_E2);
+        return;
+    }
+    else if (games[id] == NULL) {
         sendMessage(id, SURRENDER_REFUSED, SURRENDER_E1);
         return;
     }
 
     clients[id]->setLastCommunication();
 
-    games[id]->endGame(id);
+    games[id]->endGameSurrender(id);
 }
 
 void Server::revealCell(int id, std::string message) {
 
     if (games[id] == NULL) {
         sendMessage(id, REVEAL_REFUSED, REVEAL_E2);
+        return;
     }
     else if (games[id]->getTurn() != id) {
         sendMessage(id, REVEAL_REFUSED, REVEAL_E1);
+        return;
     } 
 
     std::vector<std::string> vec; 
@@ -664,6 +673,10 @@ void Server::executeEndGameResponse(int winner, int loser, const char reason) {
             games[winner]->endGameReveal(winner);
             games[loser]->endGameReveal(loser);
             break;
+        case Game::EXIT:
+            sendMessage(winner, SURRENDER_WIN, NULL);
+            games[winner]->endGameReveal(winner);
+            break;
     }
 
     if (clients[winner] != NULL) {
@@ -718,6 +731,7 @@ void Server::gameReconnect(int id, std::string message) {
 
         if (games[oldId] == NULL) {
             sendMessage(id, RECONNECT_REFUSED, RECONNECT_E2);
+            return;
         }
         else if (games[oldId]->reconnect(id, oldId, vec[1].c_str())) {
             clients[id]->setInGame(true);
@@ -746,7 +760,6 @@ void Server::executeIdleQueue() {
     sem_wait(&semaphore);
     while(!idleQueue.empty()) {
         int id = idleQueue.front();
-        //STAT-INFO
         info.clientsIdleDisconnected++;
         executeKick(id);
         idleQueue.pop();

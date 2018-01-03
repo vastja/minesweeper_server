@@ -14,7 +14,6 @@ class Client {
         time_t lastComunication;
         bool inGame;
         bool waitingForGame;
-        bool idle;
         bool marked;
         int badFormatMessages;
         

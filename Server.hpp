@@ -37,6 +37,7 @@ const char TIMEOUT_WIN = 23;
 const char TIMEOUT_LOSE = 24;
 const char ALIVE = 25;
 const char MESSAGE_BAD_FORMAT = 26;
+const char END_TURN = 27;
 
 const char START_GAME_E1[] = "Already in game";
 const char START_GAME_E2[] = "Already waiting";
@@ -45,9 +46,11 @@ const char REVEAL_E2[] = "Game not found";
 const char REVEAL_E3[] = "Already revealed";
 const char REVEAL_E4[] = "Game error";
 const char SURRENDER_E1[] = "Game not found";
+const char SURRENDER_E2[] = "Not in game";
 const char RECONNECT_E1[] = "Bad code or id";
 const char RECONNECT_E2[] = "Game not found";
 const char END_GAME_E1[] = "Game not found";
+const char END_GAME_E2[] = "Not in game";
 const char BAD_FORMAT_ERROR_E1[] = "Invalid message format";
 
 const int CONNECTION_TIMEOUT = 10;

@@ -9,8 +9,10 @@ Game::Game(Server * server, int player1Id, int player2Id, int i , int j, int min
 
     this->player1Id = player1Id;
     this->player2Id = player2Id;
+
     this->width = i;
     this->height = j;
+
     this->fieldsToPlay = i * j;
     this->minesCount = minesCount;
     
@@ -24,8 +26,7 @@ Game::Game(Server * server, int player1Id, int player2Id, int i , int j, int min
 
     initBoard();
 
-    inProgress = true;
-    onTurn = -1;
+    onTurn = player2Id;
 
     int len = 10 + (rand() % 10);
     gameCode = new char[len];
@@ -159,8 +160,9 @@ void Game::printBoard() {
 }
 
 void Game::endTurn(int id) {
-    if (onTurn == id && inProgress) {
+    if (onTurn == id) {
         this->roundTimer->cancel();
+        this->server->sendMessage(onTurn, END_TURN, NULL);
     }
 }
 
@@ -177,8 +179,6 @@ void Game::setTurn(int id) {
     std::thread timer (&Timer::start, roundTimer, 30, this);
     timer.detach();
 
-    inProgress = true;
-
     this->server->sendMessage(id, START_TURN, NULL);
 }
 
@@ -187,10 +187,8 @@ int Game::getTurn() {
 }
 
 void Game::onAction() {
-    this->inProgress = false;
     int oponentId = getOponent(onTurn);
-
-    this->server->executeEndGameResponse(onTurn, oponentId, Game::TIMEOUT);
+    this->server->executeEndGameResponse(oponentId, onTurn, Game::TIMEOUT);
 };
 
 void Game::endGameReveal(int id) {
@@ -253,11 +251,9 @@ void Game::doReveal(int i, int j) {
     int oponentId = getOponent(onTurn);
     if (result == Game::MINE) { 
         this->server->executeEndGameResponse(oponentId, onTurn, Game::DEATH);
-        inProgress = false;
     } 
     else if (!areFieldsToPlay()) {
         this->server->executeEndGameResponse(oponentId, onTurn, Game::DRAW);
-        inProgress = false;
     }
     else if (result == Game::REVEALED) {
         this->server->sendMessage(onTurn, REVEAL_REFUSED, REVEAL_E3);
@@ -267,14 +263,19 @@ void Game::doReveal(int i, int j) {
     }
 }
 
-void Game::endGame(int id) {
+void Game::endGameSurrender(int id) {
     int oponentId = getOponent(id);
     this->server->executeEndGameResponse(oponentId, id, Game::SURRENDER);
 }
 
+void Game::endGame(int id) {
+    int oponentId = getOponent(id);
+    this->server->executeEndGameResponse(oponentId, id, Game::EXIT);
+}
+
 bool Game::reconnect(int id, int oldId, const char * code) {
 
-    if ((oldId == player1Id || oldId == player2Id) && strcmp(code, gameCode) == 0) {
+    if (((oldId == player1Id && player1Away) ||(oldId == player2Id && player2Away)) && strcmp(code, gameCode) == 0) {
 
         if (id == player1Id) {
             player1Id = id; 
